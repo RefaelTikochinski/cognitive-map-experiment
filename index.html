@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cognitive Map Experiment</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+    }
+    #container {
+      position: relative;
+      width: 600px;
+      height: 600px;
+      border: 2px dashed #ccc;
+      border-radius: 50%;
+      overflow: hidden;
+      background-color: #f0f8ff;
+      margin-bottom: 20px;
+    }
+    .icon {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      cursor: grab;
+    }
+    .icon img {
+      width: 100%;
+      height: 100%;
+    }
+    #controls {
+      text-align: center;
+    }
+    #participant-id {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label for="participant-id">Enter the last 4 digits of your ID:</label><br>
+    <input type="number" id="participant-id" placeholder="XXXX" required><br>
+    <button id="finish-btn">Finished</button>
+  </div>
+  <div id="container"></div>
+
+  <script>
+    // Configuration for the experiment
+    const categories = [
+      { id: "banana", src: "https://via.placeholder.com/50?text=B" },
+      { id: "shoe", src: "https://via.placeholder.com/50?text=S" },
+      { id: "microscope", src: "https://via.placeholder.com/50?text=M" },
+    ];
+
+    const container = document.getElementById("container");
+    const containerRadius = container.offsetWidth / 2;
+    const containerCenter = { x: containerRadius, y: containerRadius };
+    const results = {};
+
+    // Create and place icons randomly around the circle
+    categories.forEach((category, index) => {
+      const icon = document.createElement("div");
+      icon.className = "icon";
+      icon.id = category.id;
+      icon.style.top = `${Math.random() * (container.offsetHeight - 50)}px`;
+      icon.style.left = `${Math.random() * (container.offsetWidth - 50)}px`;
+      icon.innerHTML = `<img src="${category.src}" alt="${category.id}">`;
+
+      icon.draggable = true;
+
+      // Dragging functionality
+      icon.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", icon.id);
+      });
+
+      container.appendChild(icon);
+    });
+
+    // Handle the drop
+    container.addEventListener("dragover", (e) => e.preventDefault());
+    container.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const iconId = e.dataTransfer.getData("text/plain");
+      const icon = document.getElementById(iconId);
+
+      // Move the icon to the new position
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left - icon.offsetWidth / 2;
+      const y = e.clientY - rect.top - icon.offsetHeight / 2;
+
+      // Keep icons within the circular boundary
+      const dx = x + icon.offsetWidth / 2 - containerCenter.x;
+      const dy = y + icon.offsetHeight / 2 - containerCenter.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance <= containerRadius - icon.offsetWidth / 2) {
+        icon.style.left = `${x}px`;
+        icon.style.top = `${y}px`;
+
+        // Save the coordinates
+        results[iconId] = { x: x + icon.offsetWidth / 2, y: y + icon.offsetHeight / 2 };
+      }
+    });
+
+    // Handle Finish Button
+    document.getElementById("finish-btn").addEventListener("click", () => {
+      const participantId = document.getElementById("participant-id").value.trim();
+      if (!participantId || participantId.length !== 4) {
+        alert("Please enter the last 4 digits of your ID.");
+        return;
+      }
+
+      // Format data as CSV
+      const csvData = [
+        ["Participant ID", participantId],
+        ...Object.entries(results).map(([iconId, coords]) => [iconId, coords.x, coords.y]),
+      ]
+        .map(row => row.join(","))
+        .join("\n");
+
+      // Save to GitHub
+      saveToGitHub(participantId, csvData);
+    });
+
+    // Save data to GitHub using the GitHub API
+    async function saveToGitHub(participantId, csvData) {
+      const repo = "your-github-username/your-repo-name"; // Replace with your GitHub repo
+      const token = "your-github-token"; // Replace with your GitHub personal access token
+      const fileName = `results/${participantId}_${Date.now()}.csv`;
+
+      try {
+        const response = await fetch(`https://api.github.com/repos/${repo}/contents/${fileName}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: "Participant data upload",
+            content: btoa(csvData),
+          }),
+        });
+
+        if (response.ok) {
+          alert("Data saved successfully!");
+        } else {
+          alert("Error saving data.");
+        }
+      } catch (error) {
+        console.error("Error saving to GitHub:", error);
+      }
+    }
+  </script>
+</body>
+</html>
